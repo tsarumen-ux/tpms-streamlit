@@ -5,9 +5,9 @@ Structure mirrors the company Excel ("Cashflow_specific_idea_v3.xlsx"):
   -> RD&E, SG&A, Cost of payment terms -> Contribution Margin -> Free Cash Flow -> NPV / IRR / Payback
 
 Products (unit costs from the Sensata Item Readiness Report, 27-Sep-2026):
-  90518125507  HSSI EU (10°)  -> sold in Europe only
-  90518125519  HSSI NA (20°)  -> sold in the USA only
-  90518125533  Gamma NA/EU    -> sold in the USA and Europe
+  90518125507  HSSI EU (10°)  -> sold in the USA and Europe (split set in the sidebar)
+  90518125519  HSSI NA (20°)  -> sold in the USA and Europe (split set in the sidebar)
+  90518125533  Gamma NA/EU    -> sold in the USA and Europe (split set in the sidebar)
 
 All money is in $k (thousands of USD). Volumes are in k units, unit prices/costs in $/unit,
 so k units x $/unit = $k.
@@ -51,9 +51,9 @@ def _c(MAT, PL_MOH, TL_RES, TL_OH, TOTAL, TL_MOH=0.0, PL_RES=0.0, PL_OH=0.0, OP=
 
 # Make site: AGM (Mexico). Values = Item Readiness Report, AGM organisation.
 PRODUCTS = {
-    "HSSI_EU": dict(pn="90518125507", name="HSSI EU (10°)", weight_g=36.0, markets="Europe only",
+    "HSSI_EU": dict(pn="90518125507", name="HSSI EU (10°)", weight_g=36.0, markets="USA + Europe",
                     costs={"Pending": _c(4.66664, 0.24960, 0.14705, 0.34695, 5.41024)}),
-    "HSSI_NA": dict(pn="90518125519", name="HSSI NA (20°)", weight_g=36.0, markets="USA only",
+    "HSSI_NA": dict(pn="90518125519", name="HSSI NA (20°)", weight_g=36.0, markets="USA + Europe",
                     costs={"Pending": _c(4.43486, 0.23721, 0.14705, 0.34695, 5.16607)}),
     "GAMMA": dict(pn="90518125533", name="Gamma NA/EU", weight_g=54.0, markets="USA + Europe",
                   costs={"Pending": _c(5.26008, 0.28134, 1.51820, 3.38990, 10.44952)}),
@@ -193,7 +193,7 @@ Where the unit costs come from. The cost table in the sidebar is **pre-filled** 
     "tariffs": """
 Duties on the **finished product** when it crosses a border to the market. Duties on components are already in MOH.
 
-**Lanes.** All products are made in AGM (Mexico): HSSI EU → Europe, HSSI NA → USA, Gamma → both (split in the sidebar).
+**Lanes.** All products are made in AGM (Mexico) and can sell into both markets: AGM → USA and AGM → Europe, with the split per product set in the sidebar (Market split).
 
 **How the duty is calculated.** Duty per unit = duty rate × customs value. The customs value is the price on the invoice with which the goods are imported, so it depends on the **sales route** (sidebar, separately for the USA and Europe):
 - **Via Sensata DC – intercompany invoice.** AGM invoices the Sensata distribution centre (Fort Worth / Bergkirchen), which then sells to the customer. Customs value = make-site cost × (1 + intercompany mark-up). The EU adds the freight to the EU border (CIF basis); the USA does not (FOB basis). The mark-up must be at arm's length and is set by Sensata Tax.
@@ -331,6 +331,137 @@ Use the download button to paste them into the presentation or the decision log.
 def show_guide(key, title_key="tab"):
     with st.expander(GUIDE_TITLES[title_key]):
         st.markdown(GUIDE[key])
+
+
+FORMULAS = [
+    ("P&L (Sensata BU format)", "Standard COGS", "Today's cost table (MAT+MOH+RES+OH), held flat with no learning "
+     "curve or drift, × that year's volume — summed across all 3 products for the combined view",
+     "The editable cost table (sidebar → 2 · Products & unit cost)"),
+    ("P&L (Sensata BU format)", "Standard Margin", "Net Revenue − Standard COGS", "—"),
+    ("P&L (Sensata BU format)", "Mfg Variances", "Actual modelled factory cost (Material + CLAM, with the learning "
+     "curve, yield, ramp-up, labour inflation and material productivity all applied) − Standard COGS",
+     "Same drivers as 'CLAM (labour & overhead)' and 'Raw material' in the P&L tab"),
+    ("P&L (Sensata BU format)", "Mfg Margin", "Standard Margin − Mfg Variances (equivalently, Net Revenue − actual factory cost)", "—"),
+    ("P&L (Sensata BU format)", "Distribution / Other COR", "Total COGS − actual factory cost = freight, insurance, "
+     "duties, outbound freight, warehouse and COPQ combined", "Same drivers as those P&L rows"),
+    ("P&L (Sensata BU format)", "Make Margin", "Mfg Margin − Distribution/Other COR (identical to 'Gross (make) "
+     "margin' shown elsewhere in the app)", "—"),
+    ("P&L (Sensata BU format)", "Engineering", "Program RD&E, net of NRE (same as 'RD&E nett' in the P&L)", "RD&E table (sidebar → 4)"),
+    ("P&L (Sensata BU format)", "Gross Margin", "Make Margin − Engineering", "—"),
+    ("P&L (Sensata BU format)", "R&D / Selling / G&A", "This model doesn't split SG&A into sub-categories: R&D and "
+     "Selling are shown as 0, and the full SG&A sits under G&A", "SG&A input (sidebar → 4)"),
+    ("P&L (Sensata BU format)", "Segment PFO", "Gross Margin − R&D − Selling − G&A", "—"),
+    ("P&L (Sensata BU format)", "ADJ EBIT", "= Segment PFO in this model (no further below-the-line adjustment is modelled)", "—"),
+    ("Cash flow", "Contribution margin", "Same figure as 'Contribution margin / Operating income' in the P&L — the starting point of the cash-flow bridge", "—"),
+    ("Decision", "NPV ($k)", "Σ FCFₜ ÷ (1 + WACC)^t, t = 1…n (Excel convention: year 1 already discounted)",
+     "Free cash flow of every year (see Cash flow); WACC (sidebar → 5 · Cash flow & decision)"),
+    ("Decision", "IRR", "The discount rate r for which Σ FCFₜ ÷ (1+r)^t = 0", "Same free cash flow series as NPV"),
+    ("Decision", "Payback (years)", "Full years until cumulative FCF ≥ 0, plus the fraction of the year that closes the gap: "
+     "years + (−cumulative FCF at year-end) ÷ next year's FCF", "Free cash flow of every year"),
+    ("Decision", "Manufacturing margin %", "Σ Gross (make) margin ÷ Σ Total revenue, over the whole horizon",
+     "Gross margin and revenue of every year (see P&L)"),
+    ("Decision", "Accretion / (Dilution)", "(peak-year manufacturing margin % − benchmark %) × peak-year revenue",
+     "The year with the highest revenue; the hurdle % (sidebar → 5 · Cash flow & decision → Manufacturing margin hurdles)"),
+    ("Decision", "NPD Effectiveness", "Σ Total revenue, years 1–5 ÷ program-specific RD&E (net of NRE, total)",
+     "Revenue of years 1–5; RD&E labour/expenses/NRE table (sidebar → 4 · Investment, RD&E & SG&A)"),
+    ("Decision", "Return on RD&E", "Σ Contribution margin (EBIT), years 1–5 ÷ program-specific RD&E (total)",
+     "Contribution margin of years 1–5; same RD&E table as above"),
+    ("Decision", "Lowest price for all hurdles", "Binary search on the quoted price: the lowest price at which "
+     "NPV > 0, every margin benchmark is beaten and payback is under the hurdle", "All of the above, recomputed price by price"),
+    ("P&L", "Volume (k units)", "Total volume forecast (sidebar → 1 · Volume & price) × this product's share of that year "
+     "(sidebar → 1 · Volume & price → per-year split), × the what-if volume %", "Volume table, product split table, what-if slider"),
+    ("P&L", "ASP ($/unit)", "Quoted price (A or B) × (1 − price-down)ᵗ if year-on-year, or quoted price × (1 − price-down) if "
+     "discount-on-quote", "Price A/B, price-down table and mode (sidebar → 1 · Volume & price)"),
+    ("P&L", "Item revenue", "Volume × ASP, for that year", "Volume and ASP above"),
+    ("P&L", "Non-item revenue (samples, CUF, quicksavings)", "Sample revenue + CUF (both booked in the launch year) + quicksavings amortization "
+     "(quicksavings paid, spread over the years in proportion to volume)", "Sample/CUF/quicksavings inputs (sidebar → Other net revenue)"),
+    ("P&L", "Total revenue", "Item revenue + non-item revenue", "—"),
+    ("P&L", "Raw material (MAT, yielded)", "MAT from the cost table ÷ yield of that year (or MAT × steady-yield ÷ "
+     "yield, if 'already includes steady-state scrap' is ticked) × volume", "Cost table MAT, yield launch/steady, "
+     "material productivity %, the 'includes scrap' checkbox"),
+    ("P&L", "Yield %", "Launch yield + (steady yield − launch yield) × min(years since launch ÷ ramp-up years, 1)",
+     "Yield launch/steady, years to steady-state (sidebar → 3 · Logistics & duties is CLAM ramp, actually under "
+     "2 · Products & unit cost → CLAM learning curve)"),
+    ("P&L", "Material overhead – inbound freight & duties (MOH)", "MOH from the cost table × the same material-productivity decay as MAT, × volume",
+     "Cost table MOH, material productivity %"),
+    ("P&L", "Total material", "Raw material + material overhead", "—"),
+    ("P&L", "CLAM (labour & overhead)", "(Direct labour + indirect labour & overhead) × volume, where direct labour = "
+     "RES × (1+labour inflation)^years × learning-curve premium, and overhead = OH × (1 − depreciation share) × premium",
+     "Cost table RES/OH, labour inflation %, launch CLAM premium, years to steady-state, depreciation share of OH, "
+     "and for Gamma in AGM: the ramp-up curve"),
+    ("P&L", "Additional investment depreciation", "This product's share of the shared/specific CapEx ÷ useful life, "
+     "for every year the asset is in service", "CapEx amounts and useful life (sidebar → 4 · Investment, RD&E & SG&A)"),
+    ("P&L", "Total factory", "CLAM + additional investment depreciation", "—"),
+    ("P&L", "Freight AGM → DC (incl. insurance)", "Product weight (kg) × freight $/kg of the lane used, plus cargo "
+     "insurance if the Incoterm requires it (CIP/CIF)", "Freight $/kg per lane, market split %, sales route, Incoterm, "
+     "insurance % (sidebar → 3 · Logistics & duties)"),
+    ("P&L", "Finished-goods duties", "Duty rate of the lane × customs value (intercompany price if via-DC, or ASP-derived "
+     "if direct/DDP) × volume", "Duty rates, sales route, Incoterm, intercompany mark-up % (sidebar → 3 · Logistics & duties)"),
+    ("P&L", "Total freight & duties (MS→DC)", "Freight & insurance + finished-goods duties", "—"),
+    ("P&L", "Outbound freight / Warehouse", "% of item revenue × the share of volume sold via a Sensata DC (0 if sold "
+     "direct to the customer)", "Outbound/warehouse % (sidebar → 3 · Logistics & duties), sales route"),
+    ("P&L", "COPQ (warranty)", "COPQ % × item revenue", "COPQ % (sidebar → 3 · Logistics & duties)"),
+    ("P&L", "Total overhead COGS", "Outbound freight + warehouse + COPQ", "—"),
+    ("P&L", "Total COGS", "Total material + total factory + total freight & duties + total overhead COGS", "—"),
+    ("P&L", "Gross margin / Make margin", "Total revenue − total COGS", "—"),
+    ("P&L", "RD&E labour / expenditures / NRE", "Read directly from the year-by-year RD&E table, × this view's "
+     "share of the shared costs (100% for one product's own line, the volume share when part of the combined case)",
+     "RD&E labour/expenses/NRE table (sidebar → 4 · Investment, RD&E & SG&A)"),
+    ("P&L", "RD&E nett", "RD&E labour + RD&E expenditures − NRE", "—"),
+    ("P&L", "SG&A", "Fixed SG&A per year (from launch) × cost share + item revenue × SG&A %", "SG&A fixed $k and % (sidebar → 4)"),
+    ("P&L", "Cost of payment terms", "Item revenue × the % looked up for the chosen payment days (30→0%, 60→1%, … in "
+     "the Payments-terms table)", "Payment terms days (sidebar → 5 · Cash flow & decision)"),
+    ("P&L", "Contribution margin / Operating income", "Gross margin − RD&E nett − SG&A − cost of payment terms", "—"),
+    ("Cash flow", "− Income tax", "max(Contribution margin, 0) × tax rate %", "Income tax % (sidebar → 5, Tax & conventions)"),
+    ("Cash flow", "+ Cost of payment terms", "Added back: it is a modelled cost, not an actual cash payment (its cash "
+     "effect already sits inside receivables/DSO)", "—"),
+    ("Cash flow", "+ Depreciation (standard make / additional investment)", "Added back in full: depreciation is an "
+     "accounting charge, not a cash outflow", "Same depreciation as in the P&L"),
+    ("Cash flow", "Quicksavings amortization / paid", "The P&L spreads the quicksavings paid over the years by volume "
+     "(added back); the cash tab instead shows the full amount paid out in the launch year", "Quicksavings paid $k (sidebar → Other net revenue)"),
+    ("Cash flow", "− Capital expenditures", "The CapEx cash actually spent that year (launch-year CapEx, plus year-1/2 "
+     "CapEx if set)", "CapEx amounts and timing (sidebar → 4 · Investment, RD&E & SG&A)"),
+    ("Cash flow", "− Change in working capital", "This year's working capital minus last year's: "
+     "WC = receivables + inventory − payables", "DSO/DIO/DPO (sidebar → 5 · Cash flow & decision → Working capital)"),
+    ("Cash flow", "Receivables (DSO)", "DSO ÷ 365 × item revenue", "DSO days"),
+    ("Cash flow", "Inventory (DIO)", "DIO ÷ 365 × cash product cost (product COGS minus non-cash depreciation)", "DIO days"),
+    ("Cash flow", "Payables (DPO)", "DPO ÷ 365 × material spend", "DPO days"),
+    ("Cash flow", "+ Working capital release", "The full working-capital balance of the last year, added back once "
+     "(only if 'Release working capital at end of horizon' is ticked)", "That checkbox (sidebar → 5)"),
+    ("Cash flow", "Free cash flow", "Contribution margin − tax + all the add-backs above − CapEx − Δworking capital "
+     "+ release", "Everything above"),
+    ("Cash flow", "Cumulative FCF", "Running sum of free cash flow from the project's first year", "—"),
+    ("Unit cost & products", "MAT / MOH / RES / OH", "Read directly from the editable cost table (sidebar → 2 · "
+     "Products & unit cost); pre-filled from the Item Readiness Report pending cost, with the received material "
+     "quote applied on MAT", "The cost table itself — every cell is a direct input, not a further calculation"),
+    ("Unit cost & products", "Conversion (RES+OH)", "RES + OH", "—"),
+    ("Unit cost & products", "OTP / unit cost ($/unit)", "Yielded material + MOH + CLAM + freight & insurance + "
+     "finished-goods duty, all per unit — the same build-up as the P&L, shown per unit instead of in $k",
+     "Same drivers as the P&L material/CLAM/freight/duty rows"),
+    ("Tariffs & logistics", "Effective duty rate %", "MFN % + extra % (Section 301, replaced by 25% if Section 232 is "
+     "ticked), or 0% if the lane is marked preferential origin", "MFN/extra %, Section 232 checkbox, preferential-origin "
+     "checkbox, per lane (sidebar → 3 · Logistics & duties)"),
+    ("Tariffs & logistics", "Customs value (via DC)", "(Material + CLAM) × (1 + intercompany mark-up %), plus freight "
+     "to the border for the EU lane (CIF), not for the US lane (FOB)", "Intercompany mark-up % (sidebar → 3)"),
+    ("Tariffs & logistics", "Customs value (direct, DDP)", "(ASP − freight − insurance, USA only) ÷ (1 + duty rate) "
+     "— backed out because the DDP invoice already includes the duty", "ASP, duty rate, Incoterm"),
+    ("Tariffs & logistics", "Duty $/unit", "Duty rate % × customs value", "—"),
+    ("Tariffs & logistics", "Landed cost", "Material + CLAM + freight + insurance + duty, all per unit", "—"),
+    ("Tariffs & logistics", "US volume / % of total", "Σ (product volume × that product's USA market-split %)",
+     "Market-split sliders per product (sidebar → 2 · Products & unit cost)"),
+    ("One case or three?", "Combined NPV", "NPV of the three products run together, each carrying its lifetime "
+     "volume share of every shared cost (CapEx, RD&E, SG&A, samples, CUF, quicksavings)", "Same drivers as the P&L/cash "
+     "flow, run for all 3 products at once"),
+    ("One case or three?", "Stand-alone NPV", "NPV of one product alone, carrying the % of shared costs set by "
+     "'Shared costs a product still needs on its own' (sidebar → Portfolio)", "That %, plus the product's own P&L/cash flow"),
+    ("One case or three?", "Allocated NPV", "NPV of one product carrying its lifetime volume share of the shared "
+     "costs (the three allocated NPVs add up to the combined NPV at 0% tax)", "Volume shares over the horizon"),
+    ("One case or three?", "Incremental NPV", "Combined NPV − combined NPV with that product removed", "—"),
+    ("One case or three?", "Synergy", "Combined NPV − Σ of the three stand-alone NPVs", "—"),
+]
+
+
+FORMULA_LOOKUP = {metric: formula for _, metric, formula, _ in FORMULAS}
 
 
 # =====================================================
@@ -503,6 +634,8 @@ with st.sidebar.expander("Selling price (all 3 products)", expanded=False):
     P["price_B"] = c2.number_input("Price B ($/unit)", 0.0, 1000.0, 12.0, 0.5, format="%.2f")
     P["price_scen"], P["asp_all"] = "A", P["price_A"]   # the scenario is chosen on the main page
     st.markdown("**Price-down to the customer**")
+    st.caption("Confirmed: 1% in years 1 and 2. Not yet confirmed for later years — left at 0% (no further "
+               "discount assumed) until Sales confirms the LTA schedule beyond year 2.")
     P["price_down_mode"] = "yoy" if st.radio(
         "How the price-down works",
         ["Year-on-year (the price stays down)", "Discount on the quoted price (only in those years)"],
@@ -610,9 +743,12 @@ with st.sidebar.expander("Product portfolio (specific costs, markets)", expanded
         })
     st.caption("Specific CapEx / RD&E = only what this product needs on top of the shared project costs below. "
                "The selling price is set above (Selling price).")
-    gamma_us = st.slider("Gamma sold in the USA %", 0, 100, 50,
-                         help="HSSI NA goes 100% to the USA, HSSI EU 100% to Europe. Gamma is split.")
-    us_share = {"HSSI_EU": 0.0, "HSSI_NA": 1.0, "GAMMA": gamma_us / 100}
+    st.markdown("**Market split (% sold in the USA, rest in Europe)**")
+    st.caption("Not yet confirmed by Sales for any of the 3 products — all three can in principle sell into both "
+               "regions. Defaults to 50/50 until the real split is known.")
+    us_share = {}
+    for pk in PKEYS:
+        us_share[pk] = st.slider(f"{PNAME[pk]} sold in the USA %", 0, 100, 50, key=f"us_share_{pk}") / 100
     P["products"] = {}
     for idx, pk in enumerate(PKEYS):
         r = prod_ed.iloc[idx]
@@ -1265,6 +1401,19 @@ The one-page answer: is the project worth doing, and at which price?
   - **NPD Effectiveness** = revenue of years 1–5 ÷ program-specific RD&E. **Return on RD&E** = EBIT of years 1–5 ÷ program-specific RD&E.
 - **Price A vs price B** – both scenarios side by side, whatever is selected above, plus the lowest price that still meets all hurdles.
 """,
+    "pl_bu": """
+This is the same P&L, laid out the way Sensata's BU-level reporting does it (Net Revenue down to ADJ EBIT), so Finance sees familiar line names. Every number here is derived from the same model — nothing is re-entered.
+
+**The waterfall**
+- **Net Revenue** − **Standard COGS** = **Standard Margin**. Standard COGS = today's cost table (MAT+MOH+RES+OH) held flat, at every year's volume — "what the product should cost once mature."
+- **Standard Margin** − **Mfg Variances** = **Mfg Margin**. Mfg Variances = actual modelled factory cost (with the learning curve, ramp-up, yield shortfall, labour inflation, material productivity, and any new-investment depreciation) minus Standard COGS. A positive variance means the plant is costing more than standard right now — mainly in the early, less mature years.
+- **Mfg Margin** − **Distribution / Other COR** (freight, insurance, duties, outbound, warehouse, COPQ) = **Make Margin**. This equals the "Gross (make) margin" shown elsewhere in the app — same number, different name.
+- **Make Margin** − **Engineering** (program RD&E, net of NRE) = **Gross Margin**.
+- **Gross Margin** − **R&D** − **Selling** − **G&A** = **Segment PFO**. This model doesn't split SG&A into R&D/Selling/G&A sub-categories, so the full SG&A sits under G&A and R&D/Selling show 0 — ask Finance for the real split if it's needed.
+- **Segment PFO** = **ADJ EBIT** here, since the model has no further below-the-line adjustment.
+
+**Not in this template:** the cost of payment terms (a financing cost, not part of Sensata's standard BU waterfall) is shown as a memo line underneath, so you can still reconcile to the "Contribution margin" used elsewhere in the app.
+""",
     "pl_excel": """
 The P&L in the same order as the company Excel (sheet *1. P&L*): revenue → material → factory (CLAM) → freight & duties → overhead COGS → gross (make) margin → RD&E → SG&A → payment terms → contribution margin.
 
@@ -1325,9 +1474,56 @@ def light(ok):
     return "⚪" if ok is None else ("🟢" if ok else "🔴")
 
 
-def excel_table(rows, cols, pct_of=None, bold=()):
+def hover_table(rows, cols, bold=(), total_override=None, height=560):
+    """rows = [(label, values(array, one per col), kind, tooltip_fn or None)].
+    tooltip_fn(i) -> a string explaining exactly how that year's number was calculated, or None for a plain cell.
+    Renders as real HTML (not st.dataframe) so every cell can carry a native hover tooltip (the title attribute) —
+    hover any number to see its calculation, with the actual figures for that year."""
+    fmt_map = {"sum": lambda v: f"{v:,.0f}", "vol": lambda v: f"{v:,.1f}", "avg": lambda v: f"{v:,.2f}",
+              "pct": lambda v: f"{v:.1f}%", "last": lambda v: f"{v:,.0f}"}
+
+    def esc(s):
+        return s.replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+
+    head = "<th style='text-align:left;padding:5px 10px;position:sticky;top:0;background:var(--background-color,inherit)'></th>"
+    head += "".join(f"<th style='text-align:right;padding:5px 10px;font-weight:600;border-bottom:1.5px solid rgba(128,128,128,.5);"
+                    f"position:sticky;top:0;background:var(--background-color,inherit)'>{c}</th>" for c in list(cols) + ["Total"])
+    body = ""
+    for label, values, kind, tip_fn in rows:
+        values = np.asarray(values, dtype=float)
+        fmt = fmt_map[kind]
+        bstyle = "font-weight:700;" if label in bold else ""
+        cells = f"<td style='text-align:left;padding:5px 10px;white-space:nowrap;{bstyle}'>{esc(label)}</td>"
+        for i in range(len(values)):
+            v = values[i]
+            txt = fmt(v) if v == v else ""
+            tip = tip_fn(i) if (tip_fn and v == v) else None
+            title = f' title="{esc(tip)}"' if tip else ""
+            help_style = "cursor:help;border-bottom:1px dotted rgba(128,128,128,.6);" if tip else ""
+            cells += f"<td{title} style='text-align:right;padding:5px 10px;{bstyle}{help_style}'>{txt}</td>"
+        if total_override and label in total_override:
+            tot = total_override[label]
+        elif kind in ("sum", "vol"):
+            tot = values.sum()
+        elif kind == "avg":
+            nz = values[values != 0]
+            tot = nz.mean() if len(nz) else float("nan")
+        else:
+            tot = float("nan")
+        tot_title = ""
+        cells += f"<td{tot_title} style='text-align:right;padding:5px 10px;{bstyle}'>{fmt(tot) if tot == tot else ''}</td>"
+        body += f"<tr style='border-bottom:1px solid rgba(128,128,128,.15)'>{cells}</tr>"
+    html = (f"<div style='max-height:{height}px;overflow:auto;border:1px solid rgba(128,128,128,.3);border-radius:6px'>"
+            f"<table style='width:100%;border-collapse:collapse;font-size:14px'>"
+            f"<thead><tr>{head}</tr></thead><tbody>{body}</tbody></table></div>")
+    st.markdown(html, unsafe_allow_html=True)
+    st.caption("Hover any number to see exactly how it was calculated for that year.")
+
+
+def excel_table(rows, cols, pct_of=None, bold=(), total_override=None):
     """rows = [(label, array, kind)]; kind: 'sum' (money), 'avg' (unit value), 'pct' (share), 'vol'.
-    Returns a Styler with the years as columns and a Total column, like the company Excel."""
+    total_override: optional {label: value} to force the Total column for specific rows (e.g. a revenue-weighted
+    margin % instead of a simple average). Returns a Styler with the years as columns and a Total column."""
     data, fmt_rows = {}, {}
     for label, arr, kind in rows:
         arr = np.asarray(arr, dtype=float)
@@ -1350,6 +1546,10 @@ def excel_table(rows, cols, pct_of=None, bold=()):
             fmt_rows[label] = {"sum": "{:,.0f}", "vol": "{:,.1f}", "avg": "{:,.2f}", "pct": "{:.1f}%", "last": "{:,.0f}"}[kind]
         data[label] = list(vals) + [tot]
     t = pd.DataFrame(data, index=list(cols) + ["Total"]).T
+    if total_override:
+        for label, val in total_override.items():
+            if label in t.index:
+                t.loc[label, "Total"] = val
     sty = t.style
     for label, f in fmt_rows.items():
         sty = sty.format(f, subset=pd.IndexSlice[[label], :], na_rep="")
@@ -1362,39 +1562,38 @@ with tabs[0]:
     show_guide("decision")
     st.subheader(f"Decision – {view_tag}, price {PRICE} ({P['asp_all']:.2f} $/unit)")
     c = st.columns(6)
-    c[0].metric("NPV ($k)", k(base["npv"]), help=f"At {P['wacc'] * 100:.0f}% WACC.")
-    c[0].caption("All future cash converted to today's value. > 0 = the project earns more than the required return.")
-    c[1].metric("IRR", pct(base["irr"]))
-    c[1].caption("The project's yearly return. Must be above the WACC for the investment to be worth it.")
-    c[2].metric("Payback", years_fmt(base["payback"], " yrs"))
-    c[2].caption("After how many years the money invested in the project comes back.")
-    c[3].metric("Manufacturing margin", f"{base['avg_gm_pct']:.1f}%")
-    c[3].caption("Gross margin ÷ revenue over the whole horizon. Compared against the business-unit benchmarks.")
-    c[4].metric("NPD Effectiveness", f"{base['npd_eff']:.1f}" if base["npd_eff"] else "n/a")
-    c[4].caption("Revenue years 1–5 ÷ RD&E. How many $ of revenue each $ of RD&E spend generates.")
-    c[5].metric("Return on RD&E", f"{base['return_on_rde']:.1f}" if base["return_on_rde"] else "n/a")
-    c[5].caption("EBIT years 1–5 ÷ RD&E. How many $ of profit each $ of RD&E spend generates.")
+    c[0].metric("NPV ($k)", k(base["npv"]),
+               help=f"At {P['wacc'] * 100:.0f}% WACC. All future cash converted to today's value. "
+                    "> 0 = the project earns more than the required return.")
+    c[1].metric("IRR", pct(base["irr"]),
+               help="The project's yearly return. Must be above the WACC for the investment to be worth it.")
+    c[2].metric("Payback", years_fmt(base["payback"], " yrs"),
+               help="After how many years the money invested in the project comes back.")
+    c[3].metric("Manufacturing margin", f"{base['avg_gm_pct']:.1f}%",
+               help="Gross margin ÷ revenue over the whole horizon. Compared against the business-unit benchmarks.")
+    c[4].metric("NPD Effectiveness", f"{base['npd_eff']:.1f}" if base["npd_eff"] else "n/a",
+               help="Revenue years 1–5 ÷ RD&E. How many $ of revenue each $ of RD&E spend generates.")
+    c[5].metric("Return on RD&E", f"{base['return_on_rde']:.1f}" if base["return_on_rde"] else "n/a",
+               help="EBIT years 1–5 ÷ RD&E. How many $ of profit each $ of RD&E spend generates.")
 
-    st.divider()
-    st.markdown("**🎛️ Try your own price**")
-    tp_col1, tp_col2 = st.columns([2, 3])
-    try_price = tp_col1.slider("Test price ($/unit)", 5.0, 20.0,
-                               float(P["asp_all"]), 0.1, key="try_price_slider",
-                               help="Move the slider to see instantly whether the project meets the hurdles at this price. "
-                                    "Does not change the price A/B selected above.")
-    try_res = evaluate(with_price(P, try_price), VIEW)
-    try_tests = [try_res["npv"] > 0] + [try_res["avg_gm_pct"] > h for _, h in P["mm_hurdles"]] \
-        + [try_res["payback"] is not None and try_res["payback"] < P["payback_hurdle"]]
-    with tp_col2:
-        tc = st.columns(4)
-        tc[0].metric("NPV at this price", k(try_res["npv"]), delta=k(try_res["npv"] - base["npv"]))
-        tc[1].metric("Manufacturing margin", f"{try_res['avg_gm_pct']:.1f}%",
-                    delta=f"{try_res['avg_gm_pct'] - base['avg_gm_pct']:+.1f} pp")
-        tc[2].metric("Payback", years_fmt(try_res["payback"], " yrs"))
-        tc[3].metric("Hurdles met", f"{sum(try_tests)} / {len(try_tests)}")
-    lights_row = " ".join(light(ok) for ok in try_tests)
-    st.caption(f"{lights_row}  (NPV, " + ", ".join(n for n, _ in P["mm_hurdles"]) + ", Payback)")
-    st.divider()
+    with st.expander("🎛️ Try your own price"):
+        tp_col1, tp_col2 = st.columns([2, 3])
+        try_price = tp_col1.slider("Test price ($/unit)", 5.0, 20.0,
+                                   float(P["asp_all"]), 0.1, key="try_price_slider",
+                                   help="Move the slider to see instantly whether the project meets the hurdles at this price. "
+                                        "Does not change the price A/B selected above.")
+        try_res = evaluate(with_price(P, try_price), VIEW)
+        try_tests = [try_res["npv"] > 0] + [try_res["avg_gm_pct"] > h for _, h in P["mm_hurdles"]] \
+            + [try_res["payback"] is not None and try_res["payback"] < P["payback_hurdle"]]
+        with tp_col2:
+            tc = st.columns(4)
+            tc[0].metric("NPV at this price", k(try_res["npv"]), delta=k(try_res["npv"] - base["npv"]))
+            tc[1].metric("Manufacturing margin", f"{try_res['avg_gm_pct']:.1f}%",
+                        delta=f"{try_res['avg_gm_pct'] - base['avg_gm_pct']:+.1f} pp")
+            tc[2].metric("Payback", years_fmt(try_res["payback"], " yrs"))
+            tc[3].metric("Hurdles met", f"{sum(try_tests)} / {len(try_tests)}")
+        lights_row = " ".join(light(ok) for ok in try_tests)
+        st.caption(f"{lights_row}  (NPV, " + ", ".join(n for n, _ in P["mm_hurdles"]) + ", Payback)")
 
     wacc_pct = P["wacc"] * 100
     avg_mm = base["avg_gm_pct"]
@@ -1527,9 +1726,8 @@ with tabs[0]:
 
 # ---------- 2. P&L ----------
 with tabs[1]:
-    show_guide("pl_excel")
+    show_guide("pl_bu")
     st.subheader(f"P&L ($k) – {view_tag}, price {PRICE}")
-    as_pct = st.toggle("Show as % of total revenue", value=False)
     vol = df["Volume (k units)"].to_numpy()
     tnr = df["Total net revenue"].to_numpy()
     mat_y = df["Material, yielded ($/unit)"].to_numpy() * vol
@@ -1537,69 +1735,254 @@ with tabs[1]:
     adddep = df["+ Additional investment depreciation"].to_numpy()
     frt = (df["Freight MS→DC"] + df["Cargo insurance"]).to_numpy()
     fgd = df["Finished-goods duties"].to_numpy()
-    rows = [
-        ("Volume (k units)", vol, "vol"), ("ASP ($/unit)", df["ASP ($/unit)"], "avg"),
-        ("Item revenue", df["Item net revenue"], "sum"),
-        ("Non-item revenue (samples, CUF, quicksavings)",
-         df["Sample net revenue"] + df["CUF"] + df["Quicksavings amortization"], "sum"),
-        ("Total revenue", tnr, "sum"),
-        ("Raw material (MAT, yielded)", mat_y, "sum"), ("Yield %", df["Yield %"], "avg"),
-        ("Material overhead – inbound freight & duties (MOH)", moh, "sum"), ("Total material", df["Material"], "sum"),
-        ("CLAM (labour & overhead)", df["CLAM"].to_numpy() - adddep, "sum"),
-        ("Additional investment depreciation", adddep, "sum"), ("Total factory", df["CLAM"], "sum"),
-        ("Freight AGM → DC (incl. insurance)", frt, "sum"), ("Finished-goods duties", fgd, "sum"),
-        ("Total freight & duties (MS→DC)", frt + fgd, "sum"),
-        ("Outbound freight (DC → customer)", df["Outbound freight"], "sum"), ("Warehouse", df["Warehouse"], "sum"),
-        ("COPQ (warranty)", df["COPQ (warranty)"], "sum"), ("Total overhead COGS", df["Overhead COGS"], "sum"),
-        ("Total COGS", df["Total COGS"], "sum"), ("Gross margin / Make margin", df["Gross (make) margin"], "sum"),
-        ("RD&E labour", df["RD&E labour"], "sum"), ("RD&E expenditures", df["RD&E expenses"], "sum"),
-        ("NRE (paid by the customer)", df["NRE (customer funded)"], "sum"), ("RD&E nett", df["RD&E net"], "sum"),
-        ("SG&A", df["SG&A"], "sum"), ("Cost of payment terms", df["Cost of payment terms"], "sum"),
-        ("Contribution margin / Operating income", df["Contribution margin"], "sum"),
+
+    # ---- Sensata BU template (Standard Margin -> Mfg Margin -> Make Margin -> Gross Margin -> Segment PFO -> ADJ EBIT)
+    st.markdown("**Sensata BU format**")
+
+    def standard_unit_cost(pk):
+        c_ = P["costs"][pk]
+        return c_["mat"] + c_["moh"] + c_["dl"] + c_["oh"]
+
+    if VIEW == COMBINED:
+        std_cogs = np.zeros(len(years))
+        for pk in PKEYS:
+            std_cogs += run_product(P, pk, 0)["Volume (k units)"] * standard_unit_cost(pk)
+    else:
+        std_cogs = vol * standard_unit_cost(VIEW_KEY[VIEW])
+
+    actual_factory = (df["Material"] + df["CLAM"]).to_numpy()
+    mfg_variance = actual_factory - std_cogs
+    standard_margin = tnr - std_cogs
+    mfg_margin = standard_margin - mfg_variance
+    dist_other_cor = df["Total COGS"].to_numpy() - actual_factory
+    make_margin = mfg_margin - dist_other_cor                      # == Gross (make) margin elsewhere in the app
+    engineering = df["RD&E net"].to_numpy()
+    gross_margin_bu = make_margin - engineering
+    rd_line = np.zeros_like(gross_margin_bu)
+    selling_line = np.zeros_like(gross_margin_bu)
+    ga_line = df["SG&A"].to_numpy()
+    segment_pfo = gross_margin_bu - rd_line - selling_line - ga_line
+    adj_ebit = segment_pfo.copy()
+    pay_terms_memo = df["Cost of payment terms"].to_numpy()
+
+    def wpct(x):
+        return float(x.sum() / tnr.sum() * 100) if tnr.sum() else float("nan")
+
+    def n(x):
+        return f"{x:,.0f}"
+
+    tips_bu = {
+        "Net Revenue": lambda i: "Item revenue + non-item revenue for this year (see Full model build-up for the split).",
+        "Standard COGS": lambda i: (" + ".join(f"{PNAME[pk]} {run_product(P, pk, 0)['Volume (k units)'][i]:,.1f}k×{standard_unit_cost(pk):.4f}" for pk in PKEYS) if VIEW == COMBINED else f"{vol[i]:,.1f}k units × {standard_unit_cost(VIEW_KEY[VIEW]):.4f} $/unit (cost table, held flat)") + f" = {n(std_cogs[i])}",
+        "Standard Margin": lambda i: f"{n(tnr[i])} (Net Revenue) − {n(std_cogs[i])} (Standard COGS) = {n(standard_margin[i])}",
+        "Standard Margin %": lambda i: f"{n(standard_margin[i])} ÷ {n(tnr[i])} × 100 = {standard_margin[i] / tnr[i] * 100:.1f}%" if tnr[i] else None,
+        "Mfg Variances": lambda i: f"{n(actual_factory[i])} (actual factory cost) − {n(std_cogs[i])} (Standard COGS) = {n(mfg_variance[i])}",
+        "Mfg Margin": lambda i: f"{n(standard_margin[i])} (Standard Margin) − {n(mfg_variance[i])} (Mfg Variances) = {n(mfg_margin[i])}",
+        "Mfg Margin %": lambda i: f"{n(mfg_margin[i])} ÷ {n(tnr[i])} × 100 = {mfg_margin[i] / tnr[i] * 100:.1f}%" if tnr[i] else None,
+        "Distribution / Other COR": lambda i: f"{n(df['Total COGS'].iloc[i])} (Total COGS) − {n(actual_factory[i])} (actual factory cost) = {n(dist_other_cor[i])} — freight, insurance, duties, outbound, warehouse, COPQ",
+        "Make Margin": lambda i: f"{n(mfg_margin[i])} (Mfg Margin) − {n(dist_other_cor[i])} (Distribution/Other COR) = {n(make_margin[i])}",
+        "Make Margin %": lambda i: f"{n(make_margin[i])} ÷ {n(tnr[i])} × 100 = {make_margin[i] / tnr[i] * 100:.1f}%" if tnr[i] else None,
+        "Engineering": lambda i: f"Program RD&E net of NRE for this year = {n(engineering[i])} (same as 'RD&E nett' in the Full model build-up)",
+        "Gross Margin": lambda i: f"{n(make_margin[i])} (Make Margin) − {n(engineering[i])} (Engineering) = {n(gross_margin_bu[i])}",
+        "Gross Margin %": lambda i: f"{n(gross_margin_bu[i])} ÷ {n(tnr[i])} × 100 = {gross_margin_bu[i] / tnr[i] * 100:.1f}%" if tnr[i] else None,
+        "R&D": lambda i: "Not separately modelled here — kept at 0; the full RD&E sits in 'Engineering' above.",
+        "Selling": lambda i: "Not separately modelled here — kept at 0; the full SG&A sits in 'G&A'.",
+        "G&A": lambda i: f"Full SG&A for this year = {n(ga_line[i])} (sidebar → 4 · Investment, RD&E & SG&A)",
+        "Segment PFO": lambda i: f"{n(gross_margin_bu[i])} (Gross Margin) − {n(rd_line[i])} (R&D) − {n(selling_line[i])} (Selling) − {n(ga_line[i])} (G&A) = {n(segment_pfo[i])}",
+        "Segment PFO %": lambda i: f"{n(segment_pfo[i])} ÷ {n(tnr[i])} × 100 = {segment_pfo[i] / tnr[i] * 100:.1f}%" if tnr[i] else None,
+        "ADJ EBIT": lambda i: f"= Segment PFO {n(segment_pfo[i])} (no further adjustment modelled)",
+        "ADJ EBIT %": lambda i: f"{n(adj_ebit[i])} ÷ {n(tnr[i])} × 100 = {adj_ebit[i] / tnr[i] * 100:.1f}%" if tnr[i] else None,
+        "TOTAL": lambda i: f"Same as ADJ EBIT: {n(adj_ebit[i])} — restated as the bottom line of this P&L.",
+    }
+    bu_rows = [
+        ("Net Revenue", tnr, "sum", tips_bu["Net Revenue"]),
+        ("Standard COGS", std_cogs, "sum", tips_bu["Standard COGS"]),
+        ("Standard Margin", standard_margin, "sum", tips_bu["Standard Margin"]),
+        ("Standard Margin %", standard_margin / np.where(tnr != 0, tnr, np.nan) * 100, "pct", tips_bu["Standard Margin %"]),
+        ("Mfg Variances", mfg_variance, "sum", tips_bu["Mfg Variances"]),
+        ("Mfg Margin", mfg_margin, "sum", tips_bu["Mfg Margin"]),
+        ("Mfg Margin %", mfg_margin / np.where(tnr != 0, tnr, np.nan) * 100, "pct", tips_bu["Mfg Margin %"]),
+        ("Distribution / Other COR", dist_other_cor, "sum", tips_bu["Distribution / Other COR"]),
+        ("Make Margin", make_margin, "sum", tips_bu["Make Margin"]),
+        ("Make Margin %", make_margin / np.where(tnr != 0, tnr, np.nan) * 100, "pct", tips_bu["Make Margin %"]),
+        ("Engineering", engineering, "sum", tips_bu["Engineering"]),
+        ("Gross Margin", gross_margin_bu, "sum", tips_bu["Gross Margin"]),
+        ("Gross Margin %", gross_margin_bu / np.where(tnr != 0, tnr, np.nan) * 100, "pct", tips_bu["Gross Margin %"]),
+        ("R&D", rd_line, "sum", tips_bu["R&D"]), ("Selling", selling_line, "sum", tips_bu["Selling"]),
+        ("G&A", ga_line, "sum", tips_bu["G&A"]),
+        ("Segment PFO", segment_pfo, "sum", tips_bu["Segment PFO"]),
+        ("Segment PFO %", segment_pfo / np.where(tnr != 0, tnr, np.nan) * 100, "pct", tips_bu["Segment PFO %"]),
+        ("ADJ EBIT", adj_ebit, "sum", tips_bu["ADJ EBIT"]),
+        ("ADJ EBIT %", adj_ebit / np.where(tnr != 0, tnr, np.nan) * 100, "pct", tips_bu["ADJ EBIT %"]),
+        ("TOTAL", adj_ebit, "sum", tips_bu["TOTAL"]),
     ]
-    bold = {"Total revenue", "Total material", "Total factory", "Total freight & duties (MS→DC)", "Total overhead COGS",
-            "Total COGS", "Gross margin / Make margin", "RD&E nett", "Contribution margin / Operating income"}
+    bu_bold = {"Net Revenue", "Standard Margin", "Mfg Margin", "Make Margin", "Gross Margin", "Segment PFO", "ADJ EBIT", "TOTAL"}
+    bu_total_override = {"Standard Margin %": wpct(standard_margin), "Mfg Margin %": wpct(mfg_margin),
+                         "Make Margin %": wpct(make_margin), "Gross Margin %": wpct(gross_margin_bu),
+                         "Segment PFO %": wpct(segment_pfo), "ADJ EBIT %": wpct(adj_ebit)}
+    hover_table(bu_rows, years, bold=bu_bold, total_override=bu_total_override, height=680)
+    st.caption(f"Memo (not part of this template): Cost of payment terms {k(pay_terms_memo.sum())} $k over the horizon. "
+               f"Segment PFO after cost of payment terms = {k(segment_pfo.sum())} − {k(pay_terms_memo.sum())} = "
+               f"**{k(segment_pfo.sum() - pay_terms_memo.sum())}** $k — this matches 'Contribution margin' elsewhere in the app.")
 
-    c1, c2 = st.columns(2)
-    with c1:
-        if VIEW == COMBINED:
-            vs = pd.DataFrame({"Year": years})
-            for pk in PKEYS:
-                vs[PNAME[pk]] = run_product(P, pk, 0)["Volume (k units)"]
-            st.plotly_chart(px.bar(vs, x="Year", y=[PNAME[pk] for pk in PKEYS], title="Volume by product (k units)",
-                                   height=280))
-        else:
-            fig = go.Figure()
-            fig.add_bar(x=years, y=df["Total net revenue"], name="Revenue")
-            fig.add_bar(x=years, y=df["Total COGS"], name="COGS")
-            fig.add_scatter(x=years, y=df["Gross (make) margin"], name="Gross margin", mode="lines+markers")
-            fig.update_layout(barmode="group", title="Revenue, COGS & gross margin ($k)", height=280)
-            st.plotly_chart(fig)
-    with c2:
-        mdf = df[df["Total net revenue"] != 0]
-        fig = go.Figure()
-        fig.add_scatter(x=mdf["Year"], y=mdf["Gross (make) margin"] / mdf["Total net revenue"] * 100, name="Gross margin %",
-                        mode="lines+markers")
-        fig.add_scatter(x=mdf["Year"], y=mdf["Contribution margin"] / mdf["Total net revenue"] * 100,
-                        name="Contribution margin %", mode="lines+markers")
-        for name, h in P["mm_hurdles"]:
-            fig.add_hline(y=h, line_dash="dot", line_color="gray", annotation_text=name, annotation_font_size=9)
-        fig.update_layout(title="Margins vs benchmarks (%)", height=280)
-        st.plotly_chart(fig)
-
-    st.markdown("**Full P&L (as in the Excel)**")
-    st.dataframe(excel_table(rows, years, pct_of=tnr if as_pct else None, bold=bold), height=560)
-
-    with details("Annual metrics summary (as in the Excel)"):
-        st.dataframe(statement(df, ["Volume (k units)", "ASP ($/unit)", "YoY ASP productivity %",
-                                    "OTP / unit cost ($/unit)", "YoY OTP productivity %",
-                                    "Project savings (OTP change x volume)", "Gross (make) margin", "Gross margin %",
-                                    "Contribution margin", "Contribution margin %"],
-                               pct_rows=["YoY ASP productivity %", "YoY OTP productivity %", "Gross margin %",
-                                         "Contribution margin %"],
-                               unit_rows=["ASP ($/unit)", "OTP / unit cost ($/unit)"]))
+    with details("Step-by-step calculations (Sensata BU format)"):
+        i = 0 if len(years) else None
+        if i is not None:
+            if VIEW == COMBINED:
+                std_txt = " + ".join(f"{PNAME[pk]} {run_product(P, pk, 0)['Volume (k units)'][i]:,.1f}×{standard_unit_cost(pk):.4f}" for pk in PKEYS)
+            else:
+                std_txt = f"{vol[i]:,.1f} × {standard_unit_cost(VIEW_KEY[VIEW]):.4f}"
+            st.markdown(f"- {years[i]}: Standard COGS = {std_txt} = **{k(std_cogs[i])}** $k")
+            st.markdown(f"- {years[i]}: Standard Margin = {k(tnr[i])} − {k(std_cogs[i])} = **{k(standard_margin[i])}**")
+            st.markdown(f"- {years[i]}: Mfg Variances = actual factory cost {k(actual_factory[i])} − standard "
+                        f"{k(std_cogs[i])} = **{k(mfg_variance[i])}**")
+            st.markdown(f"- {years[i]}: Mfg Margin = {k(standard_margin[i])} − {k(mfg_variance[i])} = **{k(mfg_margin[i])}**")
+            st.markdown(f"- {years[i]}: Make Margin = {k(mfg_margin[i])} − {k(dist_other_cor[i])} = **{k(make_margin[i])}**")
+            st.markdown(f"- {years[i]}: Gross Margin = {k(make_margin[i])} − {k(engineering[i])} = **{k(gross_margin_bu[i])}**")
+            st.markdown(f"- {years[i]}: Segment PFO = {k(gross_margin_bu[i])} − {k(rd_line[i])} − {k(selling_line[i])} − "
+                        f"{k(ga_line[i])} = **{k(segment_pfo[i])}**")
 
     st.markdown("**Takeaways**")
+    var_share = mfg_variance.sum() / standard_margin.sum() * 100 if standard_margin.sum() else 0.0
+    takeaway("P&L", "info" if var_share < 15 else "warn",
+             f"Mfg Variances eat {var_share:.1f}% of Standard Margin over the horizon",
+             f"Total Mfg Variances {k(mfg_variance.sum())} $k vs Standard Margin {k(standard_margin.sum())} $k. This is "
+             "mainly the launch learning-curve premium, launch scrap and (for Gamma) the AGM ramp-up — it should shrink "
+             "year by year and largely disappear once every product reaches steady state.",
+             "Show the year-by-year Mfg Variances line to Finance to set expectations on when the plant reaches standard cost.")
+
+    with st.expander("Full model build-up (internal line names) — detailed breakdown"):
+        show_guide("pl_excel")
+        as_pct = st.toggle("Show as % of total revenue", value=False)
+        item_rev = df["Item net revenue"].to_numpy()
+        non_item = (df["Sample net revenue"] + df["CUF"] + df["Quicksavings amortization"]).to_numpy()
+        asp_arr = df["ASP ($/unit)"].to_numpy()
+        clam_lo = (df["CLAM"].to_numpy() - adddep)
+        total_material = df["Material"].to_numpy()
+        total_factory = df["CLAM"].to_numpy()
+        total_fd = frt + fgd
+        outbound = df["Outbound freight"].to_numpy()
+        warehouse = df["Warehouse"].to_numpy()
+        copq = df["COPQ (warranty)"].to_numpy()
+        overhead_cogs = df["Overhead COGS"].to_numpy()
+        total_cogs = df["Total COGS"].to_numpy()
+        gm = df["Gross (make) margin"].to_numpy()
+        rde_l = df["RD&E labour"].to_numpy()
+        rde_e = df["RD&E expenses"].to_numpy()
+        nre = df["NRE (customer funded)"].to_numpy()
+        rde_n = df["RD&E net"].to_numpy()
+        sga = df["SG&A"].to_numpy()
+        pterms = df["Cost of payment terms"].to_numpy()
+        cm = df["Contribution margin"].to_numpy()
+
+        tips_full = {
+            "Volume (k units)": lambda i: f"Total volume forecast × this product's share for {years[i]} (sidebar → 1 · Volume & price).",
+            "ASP ($/unit)": lambda i: f"Quoted price {P['price_scen']} {P['asp_all']:.2f} $/unit, with the price-down table applied through {years[i]} (sidebar → 1 · Volume & price).",
+            "Item revenue": lambda i: f"{vol[i]:,.1f}k units × {asp_arr[i]:.4f} $/unit = {n(item_rev[i])}",
+            "Non-item revenue (samples, CUF, quicksavings)": lambda i: f"Sample {n(df['Sample net revenue'].iloc[i])} + CUF {n(df['CUF'].iloc[i])} + quicksavings {n(df['Quicksavings amortization'].iloc[i])} = {n(non_item[i])}",
+            "Total revenue": lambda i: f"{n(item_rev[i])} (item revenue) + {n(non_item[i])} (non-item revenue) = {n(tnr[i])}",
+            "Raw material (MAT, yielded)": lambda i: f"{df['Material, yielded ($/unit)'].iloc[i]:.4f} $/unit × {vol[i]:,.1f}k units = {n(mat_y[i])}",
+            "Yield %": lambda i: f"Launch {P['yield_launch']:.1f}% + (steady {P['yield_steady']:.1f}% − launch) × ramp progress = {df['Yield %'].iloc[i]:.2f}%",
+            "Material overhead – inbound freight & duties (MOH)": lambda i: f"{df['Material overhead MOH ($/unit)'].iloc[i]:.4f} $/unit × {vol[i]:,.1f}k units = {n(moh[i])}",
+            "Total material": lambda i: f"{n(mat_y[i])} (raw material) + {n(moh[i])} (MOH) = {n(total_material[i])}",
+            "CLAM (labour & overhead)": lambda i: f"({df['Direct labour ($/unit)'].iloc[i]:.4f} + {df['Indirect labour & overhead ($/unit)'].iloc[i]:.4f} + {df['Depreciation standard make ($/unit)'].iloc[i]:.4f}) $/unit × {vol[i]:,.1f}k units = {n(clam_lo[i])}",
+            "Additional investment depreciation": lambda i: f"This product's CapEx ÷ useful life, for years the asset is in service = {n(adddep[i])}",
+            "Total factory": lambda i: f"{n(clam_lo[i])} (CLAM) + {n(adddep[i])} (additional investment depreciation) = {n(total_factory[i])}",
+            "Freight AGM → DC (incl. insurance)": lambda i: f"{(df['Freight MS→DC ($/unit)'].iloc[i] + df['Cargo insurance ($/unit)'].iloc[i]):.4f} $/unit × {vol[i]:,.1f}k units = {n(frt[i])}",
+            "Finished-goods duties": lambda i: f"{df['Finished-goods duties ($/unit)'].iloc[i]:.4f} $/unit × {vol[i]:,.1f}k units = {n(fgd[i])}",
+            "Total freight & duties (MS→DC)": lambda i: f"{n(frt[i])} (freight & insurance) + {n(fgd[i])} (duties) = {n(total_fd[i])}",
+            "Outbound freight (DC → customer)": lambda i: f"{P['outbound_pct']:.1f}% × item revenue {n(item_rev[i])} (only volume sold via a Sensata DC) = {n(outbound[i])}",
+            "Warehouse": lambda i: f"{P['warehouse_pct']:.1f}% × item revenue {n(item_rev[i])} (only volume sold via a Sensata DC) = {n(warehouse[i])}",
+            "COPQ (warranty)": lambda i: f"{P['copq_pct']:.2f}% × item revenue {n(item_rev[i])} = {n(copq[i])}",
+            "Total overhead COGS": lambda i: f"{n(outbound[i])} (outbound) + {n(warehouse[i])} (warehouse) + {n(copq[i])} (COPQ) = {n(overhead_cogs[i])}",
+            "Total COGS": lambda i: f"{n(total_material[i])} (material) + {n(total_factory[i])} (factory) + {n(total_fd[i])} (freight & duties) + {n(overhead_cogs[i])} (overhead COGS) = {n(total_cogs[i])}",
+            "Gross margin / Make margin": lambda i: f"{n(tnr[i])} (Total revenue) − {n(total_cogs[i])} (Total COGS) = {n(gm[i])}",
+            "RD&E labour": lambda i: f"From the RD&E year table (sidebar → 4 · Investment, RD&E & SG&A): {n(rde_l[i])}",
+            "RD&E expenditures": lambda i: f"From the RD&E year table (sidebar → 4 · Investment, RD&E & SG&A): {n(rde_e[i])}",
+            "NRE (paid by the customer)": lambda i: f"From the RD&E year table; reduces RD&E cost: {n(nre[i])}",
+            "RD&E nett": lambda i: f"{n(rde_l[i])} (labour) + {n(rde_e[i])} (expenditures) − {n(-nre[i])} (NRE) = {n(rde_n[i])}",
+            "SG&A": lambda i: f"Fixed {P['sga_fixed']:,.0f} $k/yr (from launch) + {P['sga_pct']:.1f}% × item revenue = {n(sga[i])}",
+            "Cost of payment terms": lambda i: f"{P['pay_pct']:.1f}% (for {P['pay_days']} days payment terms) × item revenue {n(item_rev[i])} = {n(pterms[i])}",
+            "Contribution margin / Operating income": lambda i: f"{n(gm[i])} (Gross margin) − {n(rde_n[i])} (RD&E nett) − {n(sga[i])} (SG&A) − {n(pterms[i])} (payment terms) = {n(cm[i])}",
+            "TOTAL": lambda i: f"Same as Contribution margin: {n(cm[i])} — restated as the bottom line of this P&L.",
+        }
+        rows = [
+            ("Volume (k units)", vol, "vol", tips_full["Volume (k units)"]),
+            ("ASP ($/unit)", df["ASP ($/unit)"], "avg", tips_full["ASP ($/unit)"]),
+            ("Item revenue", df["Item net revenue"], "sum", tips_full["Item revenue"]),
+            ("Non-item revenue (samples, CUF, quicksavings)", non_item, "sum", tips_full["Non-item revenue (samples, CUF, quicksavings)"]),
+            ("Total revenue", tnr, "sum", tips_full["Total revenue"]),
+            ("Raw material (MAT, yielded)", mat_y, "sum", tips_full["Raw material (MAT, yielded)"]),
+            ("Yield %", df["Yield %"], "avg", tips_full["Yield %"]),
+            ("Material overhead – inbound freight & duties (MOH)", moh, "sum", tips_full["Material overhead – inbound freight & duties (MOH)"]),
+            ("Total material", total_material, "sum", tips_full["Total material"]),
+            ("CLAM (labour & overhead)", clam_lo, "sum", tips_full["CLAM (labour & overhead)"]),
+            ("Additional investment depreciation", adddep, "sum", tips_full["Additional investment depreciation"]),
+            ("Total factory", total_factory, "sum", tips_full["Total factory"]),
+            ("Freight AGM → DC (incl. insurance)", frt, "sum", tips_full["Freight AGM → DC (incl. insurance)"]),
+            ("Finished-goods duties", fgd, "sum", tips_full["Finished-goods duties"]),
+            ("Total freight & duties (MS→DC)", total_fd, "sum", tips_full["Total freight & duties (MS→DC)"]),
+            ("Outbound freight (DC → customer)", outbound, "sum", tips_full["Outbound freight (DC → customer)"]),
+            ("Warehouse", warehouse, "sum", tips_full["Warehouse"]),
+            ("COPQ (warranty)", copq, "sum", tips_full["COPQ (warranty)"]),
+            ("Total overhead COGS", overhead_cogs, "sum", tips_full["Total overhead COGS"]),
+            ("Total COGS", total_cogs, "sum", tips_full["Total COGS"]),
+            ("Gross margin / Make margin", gm, "sum", tips_full["Gross margin / Make margin"]),
+            ("RD&E labour", rde_l, "sum", tips_full["RD&E labour"]),
+            ("RD&E expenditures", rde_e, "sum", tips_full["RD&E expenditures"]),
+            ("NRE (paid by the customer)", nre, "sum", tips_full["NRE (paid by the customer)"]),
+            ("RD&E nett", rde_n, "sum", tips_full["RD&E nett"]),
+            ("SG&A", sga, "sum", tips_full["SG&A"]),
+            ("Cost of payment terms", pterms, "sum", tips_full["Cost of payment terms"]),
+            ("Contribution margin / Operating income", cm, "sum", tips_full["Contribution margin / Operating income"]),
+            ("TOTAL", cm, "sum", tips_full["TOTAL"]),
+        ]
+        bold = {"Total revenue", "Total material", "Total factory", "Total freight & duties (MS→DC)", "Total overhead COGS",
+                "Total COGS", "Gross margin / Make margin", "RD&E nett", "Contribution margin / Operating income", "TOTAL"}
+
+        c1, c2 = st.columns(2)
+        with c1:
+            if VIEW == COMBINED:
+                vs = pd.DataFrame({"Year": years})
+                for pk in PKEYS:
+                    vs[PNAME[pk]] = run_product(P, pk, 0)["Volume (k units)"]
+                st.plotly_chart(px.bar(vs, x="Year", y=[PNAME[pk] for pk in PKEYS], title="Volume by product (k units)",
+                                       height=280))
+            else:
+                fig = go.Figure()
+                fig.add_bar(x=years, y=df["Total net revenue"], name="Revenue")
+                fig.add_bar(x=years, y=df["Total COGS"], name="COGS")
+                fig.add_scatter(x=years, y=df["Gross (make) margin"], name="Gross margin", mode="lines+markers")
+                fig.update_layout(barmode="group", title="Revenue, COGS & gross margin ($k)", height=280)
+                st.plotly_chart(fig)
+        with c2:
+            mdf = df[df["Total net revenue"] != 0]
+            fig = go.Figure()
+            fig.add_scatter(x=mdf["Year"], y=mdf["Gross (make) margin"] / mdf["Total net revenue"] * 100, name="Gross margin %",
+                            mode="lines+markers")
+            fig.add_scatter(x=mdf["Year"], y=mdf["Contribution margin"] / mdf["Total net revenue"] * 100,
+                            name="Contribution margin %", mode="lines+markers")
+            for name, h in P["mm_hurdles"]:
+                fig.add_hline(y=h, line_dash="dot", line_color="gray", annotation_text=name, annotation_font_size=9)
+            fig.update_layout(title="Margins vs benchmarks (%)", height=280)
+            st.plotly_chart(fig)
+
+        st.markdown("**Full P&L (as in the Excel)**")
+        if as_pct:
+            plain_rows = [(lbl, arr, kind) for lbl, arr, kind, _ in rows]
+            st.dataframe(excel_table(plain_rows, years, pct_of=tnr, bold=bold), height=560)
+        else:
+            hover_table(rows, years, bold=bold, height=560)
+
+        with details("Annual metrics summary (as in the Excel)"):
+            st.dataframe(statement(df, ["Volume (k units)", "ASP ($/unit)", "YoY ASP productivity %",
+                                        "OTP / unit cost ($/unit)", "YoY OTP productivity %",
+                                        "Project savings (OTP change x volume)", "Gross (make) margin", "Gross margin %",
+                                        "Contribution margin", "Contribution margin %"],
+                                   pct_rows=["YoY ASP productivity %", "YoY OTP productivity %", "Gross margin %",
+                                             "Contribution margin %"],
+                                   unit_rows=["ASP ($/unit)", "OTP / unit cost ($/unit)"]))
+
     duties_total = df["Finished-goods duties"].sum()
     takeaway("P&L", "info", f"Material is {df['Material'].sum() / df['Total COGS'].sum() * 100:.0f}% of COGS; "
                             f"duties {duties_total / df['Total COGS'].sum() * 100:.0f}%",
@@ -1685,7 +2068,10 @@ with tabs[3]:
                                    else ("Item Readiness Report, pending" if P["cost_src"] else "manual entry"))})
     mcd = pd.DataFrame(mc_rows)
     st.dataframe(mcd.style.format({c: "{:.5f}" for c in ["MAT", "MOH", "RES", "OH", "Conversion (RES+OH)", "Total"]}),
-                 hide_index=True)
+                 hide_index=True, column_config={
+                     "MAT": st.column_config.NumberColumn(help="Direct input from the editable cost table (sidebar → 2 · Products & unit cost)."),
+                     "Total": st.column_config.NumberColumn(help="MAT + MOH + RES + OH. See Explain tab → Formula reference."),
+                 })
 
     c1, c2 = st.columns(2)
     with c1:
@@ -1778,7 +2164,10 @@ with tabs[4]:
     with lc1:
         st.dataframe(pd.DataFrame(lane_rows).style.format({"MFN %": "{:.1f}", "Extra %": "{:.1f}",
                                                            "Effective rate %": "{:.1f}", "Freight $/kg": "{:.2f}"}),
-                     hide_index=True)
+                     hide_index=True, column_config={
+                         "Effective rate %": st.column_config.NumberColumn(help="MFN % + extra % (or 25% if Section 232), or 0% if preferential origin. Formula reference: Explain tab."),
+                         "Freight $/kg": st.column_config.NumberColumn(help="Set in the sidebar, per lane (3 · Logistics & duties)."),
+                     })
     with lc2:
         ldf0 = pd.DataFrame(lane_rows)
         fig = go.Figure()
@@ -1822,7 +2211,11 @@ with tabs[4]:
                           "ASP": s["asp"], "Unit margin steady": s["asp"] - s["landed"]})
     ldf = pd.DataFrame(lrows)
     st.dataframe(ldf.style.format({c: "{:.4f}" for c in ldf.columns if pd.api.types.is_numeric_dtype(ldf[c])}),
-                 hide_index=True)
+                 hide_index=True, column_config={
+                     "Duty $": st.column_config.NumberColumn(help="Duty rate % × customs value. Formula reference: Explain tab."),
+                     "Landed steady": st.column_config.NumberColumn(help="Material + CLAM + freight + insurance + duty, at steady state."),
+                     "Unit margin steady": st.column_config.NumberColumn(help="ASP − landed steady."),
+                 })
     st.caption("Pending cost + the freight, insurance and duty Sensata pays under the selected route and terms, at "
                "launch ASP. Warehouse and outbound freight (% of revenue) come on top for the DC route. The business "
                "case adds yield, inflation and productivity over time (Unit cost tab).")
@@ -1926,8 +2319,9 @@ with tabs[4]:
             st.markdown(f"- {name}: duty paid by Sensata {hn['duty']:.4f} $/unit; landed = {hn['material']:.5f} + "
                         f"{hn['clam']:.5f} + {hn['freight']:.4f} + {hn['insurance']:.4f} + {hn['duty']:.4f} = "
                         f"**{hn['landed']:.4f}**")
-        st.markdown(f"- US volume = HSSI NA {us_vol['HSSI_NA'].sum():,.1f} + Gamma × {P['products']['GAMMA']['us_share'] * 100:.0f}% "
-                    f"{us_vol['GAMMA'].sum():,.1f} = **{us_total:,.1f}** k units of {all_total:,.1f} "
+        st.markdown(f"- US volume = " + " + ".join(
+            f"{PNAME[pk]} × {P['products'][pk]['us_share'] * 100:.0f}% ({us_vol[pk].sum():,.1f})" for pk in PKEYS)
+                    + f" = **{us_total:,.1f}** k units of {all_total:,.1f} "
                     f"({us_total / all_total * 100 if all_total else 0:.1f}%)")
         st.markdown(f"- Value of USMCA = {k(npv_usmca)} − ({k(npv_no_usmca)}) = **{k(npv_usmca - npv_no_usmca)}** $k NPV")
 
@@ -1944,9 +2338,10 @@ with tabs[4]:
              "The case survives the worst tariff case; keep USMCA as upside." if lvl == "ok" else
              "The case does not survive the worst tariff case: USMCA qualification is a precondition for the go decision.")
     takeaway("Tariffs", "info", f"{us_total / all_total * 100 if all_total else 0:.0f}% of the volume goes to the USA",
-             f"HSSI NA (100% USA) + {P['products']['GAMMA']['us_share'] * 100:.0f}% of Gamma = {us_total:,.1f} of "
-             f"{all_total:,.1f} k units. Only this part is exposed to US duties.",
-             "Confirm the Gamma USA / Europe split with Sales; it moves the tariff exposure directly.")
+             "US share by product: " + ", ".join(
+                 f"{PNAME[pk]} {P['products'][pk]['us_share'] * 100:.0f}%" for pk in PKEYS)
+             + f" → {us_total:,.1f} of {all_total:,.1f} k units. Only this part is exposed to US duties.",
+             "Confirm the real USA / Europe split per product with Sales; it moves the tariff exposure directly.")
     best = max(combo_rows, key=lambda r: r["Combined NPV ($k)"])
     cur = [r for r in combo_rows if r["Selected"]][0]
     all_dc, all_dir = combo_rows[0], combo_rows[3]
@@ -2026,7 +2421,8 @@ with tabs[5]:
 
     st.markdown("**Full comparison table**")
     st.dataframe(rdf.style.format({"NPV ($k)": "{:,.0f}", "Net revenue ($k)": "{:,.0f}", "Avg CM %": "{:.1f}%"},
-                                  na_rep="–"), hide_index=True)
+                                  na_rep="–"), hide_index=True, column_config={
+                      "NPV ($k)": st.column_config.NumberColumn(help="Formula depends on the row's View — see Explain tab → Formula reference (One case or three?).")})
 
     with details("Step-by-step calculations"):
         st.markdown("Volume share over the horizon (allocation key for shared costs): " + ", ".join(
@@ -2222,13 +2618,18 @@ with tabs[7]:
          "Customer forecast / Demantra is the standard source in the Excel Data Register; confirm it is the latest."),
         ("Volume", "Split between the products", " / ".join(f"{split0[pk] * 100:.1f}%" for pk in PKEYS),
          "Not yet received", "Sales", PH, "Equal split until the real split is known; it moves the US duty exposure."),
-        ("Volume", "Gamma sold in the USA", f"{P['products']['GAMMA']['us_share'] * 100:.0f}%", "Not yet received",
-         "Sales", PH, "HSSI NA is 100% USA and HSSI EU 100% Europe by definition; Gamma goes to both."),
+        ("Volume", "Market split per product (% USA / % Europe)",
+         ", ".join(f"{PNAME[pk]} {P['products'][pk]['us_share'] * 100:.0f}/{100 - P['products'][pk]['us_share'] * 100:.0f}" for pk in PKEYS),
+         "Not yet received", "Sales", PH,
+         "All 3 products can sell into both the USA and Europe; the real split per product is not yet confirmed. "
+         "Defaults to 50/50 for each. This drives US tariff exposure and DC volumes directly."),
         ("Price", "Selling price A / B", f"{P['price_A']:.2f} / {P['price_B']:.2f} $/unit", "Commercial proposal",
          "Sales", OK, "The two probable prices given for the quote; both are always compared on the Decision tab."),
         ("Price", "Price-down", f"{pdn} ({'year-on-year' if P['price_down_mode'] == 'yoy' else 'discount on quote'})",
-         "Commercial proposal", "Sales", AS,
-         "1% in the first two years; confirm whether the price stays down (year-on-year) or returns to the quote."),
+         "Commercial proposal (years 1–2 only)", "Sales", AS,
+         "Confirmed: 1% in years 1 and 2. Not confirmed beyond year 2 — modelled as 0% (no further discount) until "
+         "Sales provides the rest of the LTA schedule. Also confirm whether the discount stays down (year-on-year) "
+         "or returns to the quote."),
         ("Unit cost", "MAT, MOH, RES, OH per product",
          "HSSI 4.885 + Gamma 5.852 $/unit material quote applied" if any(pk in MATERIAL_QUOTE for pk in PKEYS)
          and not [e for e in P["cost_edited"] if "MOH" in e or "RES" in e or "OH" in e]
@@ -2287,6 +2688,19 @@ with tabs[7]:
     c[1].metric("Assumptions to confirm", int(n_as))
     c[2].metric("Placeholders to replace", int(n_ph))
     st.dataframe(reg_df, hide_index=True, column_config={"Why": st.column_config.TextColumn(width="large")})
+
+    st.subheader("Formula reference — how every number is calculated")
+    st.caption("Every line shown in Decision, P&L, Cash flow, Unit cost, Tariffs and One-case-or-three has a row "
+               "here: the exact formula, and which sidebar inputs (the drivers) feed it.")
+    fr_tab = st.selectbox("Filter by tab", ["All", "Decision", "P&L", "P&L (Sensata BU format)", "Cash flow",
+                                            "Unit cost & products", "Tariffs & logistics", "One case or three?"],
+                         key="formula_ref_tab")
+    # FORMULAS is defined globally in head.py so the P&L/Cash-flow tables can use it too.
+    fr_df = pd.DataFrame(FORMULAS, columns=["Tab", "Metric", "Formula", "Driven by (sidebar inputs)"])
+    if fr_tab != "All":
+        fr_df = fr_df[fr_df["Tab"] == fr_tab]
+    st.dataframe(fr_df, hide_index=True, column_config={
+        "Formula": st.column_config.TextColumn(width="large"), "Driven by (sidebar inputs)": st.column_config.TextColumn(width="large")})
 
     st.subheader("Company Cash Flow Excel vs this model")
     align = [
